@@ -2,7 +2,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 import matplotlib.pyplot as plt
-from .terrain import generate_reference_and_limits
+import pandas as pd # added this for part 3 task
+from terrain import generate_reference_and_limits
+from control import PDController # importing this class from the control module
+
 
 class Submarine:
     def __init__(self):
@@ -74,9 +77,13 @@ class Mission:
         return cls(reference, cave_height, cave_depth)
 
     @classmethod
-    def from_csv(cls, file_name: str):
-        # You are required to implement this method
-        pass
+    def from_csv(cls, file_name: str): 
+        data = pd.read_csv(file_name)
+        reference = data['reference'].values
+        cave_height = data['cave_height'].values
+        cave_depth = data['cave_depth'].values
+        # THIS IS PART 3 OF THE ASSIGNMENT
+        return cls(reference, cave_height, cave_depth)
 
 
 class ClosedLoop:
@@ -90,16 +97,18 @@ class ClosedLoop:
         if len(disturbances) < T:
             raise ValueError("Disturbances must be at least as long as mission duration")
         
-        positions = np.zeros((T, 2))
-        actions = np.zeros(T)
-        self.plant.reset_state()
+        positions = np.zeros((T, 2)) # to store (x,y) positions
+        actions = np.zeros(T) # To store control actions
+        self.plant.reset_state() # Reset the submarine state at the start
 
         for t in range(T):
-            positions[t] = self.plant.get_position()
-            observation_t = self.plant.get_depth()
-            # Call your controller here
+            positions[t] = self.plant.get_position() # Get the submarine's (x,y) position
+            observation_t = self.plant.get_depth() # Get the current depth y[t]
+            # Call the controller to compute the control action
+            actions[t] = self.controller.control_action(mission.reference[t], observation_t)
+            # Apply the control action and the disturbance to the submarine
             self.plant.transition(actions[t], disturbances[t])
-
+        # Return a trajectory object that contains the positiobs
         return Trajectory(positions)
         
     def simulate_with_random_disturbances(self, mission: Mission, variance: float = 0.5) -> Trajectory:
